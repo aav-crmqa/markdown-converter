@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>OCR Reader (Tesseract.js)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #020617;
+      --bg-panel: #0b1120;
+      --border-subtle: rgba(148, 163, 184, 0.35);
+      --border-strong: rgba(148, 163, 184, 0.7);
+      --text-main: #e5e7eb;
+      --text-muted: #9ca3af;
+      --accent: #22d3ee;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      background: radial-gradient(circle at top, #020617, #020617 40%, #000 100%);
+      color: var(--text-main);
+    }
+
+    .page {
+      max-width: 1200px;
+      margin: 32px auto;
+      padding: 0 20px 32px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-size: clamp(22px, 3vw, 30px);
+      letter-spacing: 0.03em;
+    }
+
+    .title-block p {
+      margin: 4px 0 0;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 0;
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: transform 0.05s ease, box-shadow 0.1s ease,
+        background 0.1s ease, color 0.1s ease;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: linear-gradient(90deg, #22d3ee, #06b6d4);
+      color: #0f172a;
+      box-shadow: 0 8px 20px rgba(8, 47, 73, 0.6);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-main);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.7);
+    }
+
+    .panels {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 900px) {
+      .panels {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .panel {
+      background: rgba(15, 23, 42, 0.96);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65);
+      border: 1px solid rgba(15, 23, 42, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: -40%;
+      background: radial-gradient(circle at top left,
+        rgba(34, 211, 238, 0.06),
+        transparent 40%);
+      pointer-events: none;
+    }
+
+    .panel-inner {
+      position: relative;
+      z-index: 1;
+    }
+
+    .controls-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .control-group label {
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    select,
+    input[type="number"] {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      background: #020617;
+      color: var(--text-main);
+      font-size: 13px;
+      outline: none;
+    }
+
+    select:focus,
+    input[type="number"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.8);
+    }
+
+    /* DROP AREA */
+
+    .drop-zone {
+      position: relative;
+      border-radius: 16px;
+      border: 2px dashed var(--border-subtle);
+      background: rgba(15, 23, 42, 0.96);
+      min-height: 190px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      text-align: center;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease,
+        background 0.15s ease, transform 0.1s ease;
+      overflow: hidden;
+    }
+
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.3);
+      background: #020617;
+      transform: translateY(-1px);
+    }
+
+    .drop-label {
+      pointer-events: none;
+    }
+
+    .drop-label h2 {
+      margin: 0 0 6px;
+      font-size: 15px;
+      font-weight: 500;
+    }
+
+    .drop-label p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .drop-input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .thumb-grid {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+      max-height: 270px;
+      overflow: auto;
+    }
+
+    .thumb {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(30, 64, 175, 0.5);
+      background: #020617;
+      position: relative;
+    }
+
+    .thumb img {
+      width: 100%;
+      display: block;
+      object-fit: cover;
+      max-height: 140px;
+    }
+
+    .thumb-tag {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.8);
+      color: var(--text-main);
+    }
+
+    /* OUTPUT SIDE */
+
+    .progress-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .progress-shell {
+      flex: 1;
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      background: #020617;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #22d3ee, #0ea5e9);
+      transition: width 0.12s linear;
+    }
+
+    .status {
+      min-width: 70px;
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    textarea {
+      width: 100%;
+      height: 320px;
+      resize: vertical;
+      padding: 10px;
+      border-radius: 14px;
+      border: 1px solid var(--border-subtle);
+      background: #020617;
+      color: var(--text-main);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.7);
+    }
+
+    .output-actions {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .panel-footer {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <div class="title-block">
+        <h1>OCR Reader (HTML + Tesseract.js)</h1>
+        <p>All processing happens in your browser. Drop screenshots, extract text, and save the results.</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-ghost" id="btnClear">Clear</button>
+        <button class="btn btn-primary" id="btnRun">Run OCR</button>
+      </div>
+    </header>
+
+    <main class="panels">
+      <!-- LEFT PANEL: input & previews -->
+      <section class="panel">
+        <div class="panel-inner">
+          <div class="controls-row">
+            <div class="control-group">
+              <label for="selLang">Language</label>
+              <select id="selLang">
+                <option value="eng" selected>English (eng)</option>
+                <option value="spa">Spanish (spa)</option>
+                <option value="por">Portuguese (por)</option>
+                <option value="fra">French (fra)</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label for="numScale">Scale</label>
+              <input
+                type="number"
+                id="numScale"
+                min="1"
+                max="3"
+                step="0.25"
+                value="1.5"
+              />
+              <span>DPI-ish</span>
+            </div>
+          </div>
+
+          <div class="drop-zone" id="dropZone">
+            <input
+              class="drop-input"
+              id="fileInput"
+              type="file"
+              accept="image/*"
+              multiple
+            />
+            <div class="drop-label">
+              <h2>Click to choose screenshots or drag &amp; drop files here</h2>
+              <p>PNG, JPG, HEIC (converted by browser), etc.</p>
+            </div>
+          </div>
+
+          <div class="thumb-grid" id="thumbGrid"></div>
+        </div>
+      </section>
+
+      <!-- RIGHT PANEL: output -->
+      <section class="panel">
+        <div class="panel-inner">
+          <div class="progress-row">
+            <div class="progress-shell">
+              <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="status" id="statusText">Idle</div>
+          </div>
+
+          <textarea
+            id="txtOutput"
+            placeholder="Extracted text will appear here..."
+          ></textarea>
+
+          <div class="output-actions">
+            <button class="btn btn-ghost" id="btnCopy">Copy Text</button>
+            <button class="btn btn-ghost" id="btnDownloadTxt">Download .txt</button>
+            <button class="btn btn-ghost" id="btnExportCsv">Export CSV</button>
+          </div>
+
+          <div class="panel-footer">
+            Tip: For smaller fonts, increase the scale value. Images are resized
+            in-memory before OCR; nothing is uploaded to a server.
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Tesseract.js -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const dropZone = document.getElementById("dropZone");
+    const thumbGrid = document.getElementById("thumbGrid");
+
+    const btnRun = document.getElementById("btnRun");
+    const btnClear = document.getElementById("btnClear");
+    const btnCopy = document.getElementById("btnCopy");
+    const btnDownloadTxt = document.getElementById("btnDownloadTxt");
+    const btnExportCsv = document.getElementById("btnExportCsv");
+
+    const txtOutput = document.getElementById("txtOutput");
+    const progressBar = document.getElementById("progressBar");
+    const statusText = document.getElementById("statusText");
+    const selLang = document.getElementById("selLang");
+    const numScale = document.getElementById("numScale");
+
+    /** @type {File[]} */
+    let selectedImages = [];
+
+    function setStatus(message) {
+      statusText.textContent = message;
+    }
+
+    function setProgress(percent) {
+      const value = Math.max(0, Math.min(100, percent));
+      progressBar.style.width = value + "%";
+    }
+
+    function refreshThumbs() {
+      thumbGrid.innerHTML = "";
+
+      if (!selectedImages.length) {
+        return;
+      }
+
+      selectedImages.forEach((file, index) => {
+        const wrap = document.createElement("div");
+        wrap.className = "thumb";
+
+        const badge = document.createElement("div");
+        badge.className = "thumb-tag";
+        badge.textContent = "#" + (index + 1);
+        wrap.appendChild(badge);
+
+        const img = document.createElement("img");
+        wrap.appendChild(img);
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          img.src = evt.target.result;
+        };
+        reader.readAsDataURL(file);
+
+        thumbGrid.appendChild(wrap);
+      });
+    }
+
+    function acceptFiles(fileList) {
+      const items = Array.from(fileList || []).filter((f) =>
+        f.type.startsWith("image/")
+      );
+      selectedImages = items;
+      refreshThumbs();
+    }
+
+    // Input change
+    fileInput.addEventListener("change", (ev) => {
+      acceptFiles(ev.target.files);
+    });
+
+    // Drag & drop
+    dropZone.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      dropZone.classList.add("drag-over");
+    });
+
+    dropZone.addEventListener("dragleave", (ev) => {
+      ev.preventDefault();
+      if (ev.target === dropZone || !dropZone.contains(ev.relatedTarget)) {
+        dropZone.classList.remove("drag-over");
+      }
+    });
+
+    dropZone.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      dropZone.classList.remove("drag-over");
+      if (ev.dataTransfer?.files) {
+        acceptFiles(ev.dataTransfer.files);
+      }
+    });
+
+    // Scale helper
+    function scaleImageBlob(file, scale) {
+      return new Promise((resolve, reject) => {
+        if (!scale || scale === 1) {
+          resolve(file);
+          return;
+        }
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth * scale;
+          canvas.height = img.naturalHeight * scale;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(
+            (blob) => {
+              resolve(blob || file);
+            },
+            file.type || "image/png",
+            0.95
+          );
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    async function runOcrSequence() {
+      if (!selectedImages.length) {
+        alert("Please select at least one image first.");
+        return;
+      }
+
+      txtOutput.value = "";
+      setStatus("Starting...");
+      setProgress(0);
+
+      const lang = selLang.value || "eng";
+      const scale = parseFloat(numScale.value) || 1;
+
+      for (let i = 0; i < selectedImages.length; i++) {
+        const file = selectedImages[i];
+        setStatus(`Processing ${i + 1} of ${selectedImages.length}…`);
+
+        let source = file;
+        try {
+          source = await scaleImageBlob(file, scale);
+        } catch (err) {
+          console.error("Scaling error:", err);
+        }
+
+        const result = await Tesseract.recognize(source, lang, {
+          logger: (m) => {
+            if (m.status === "recognizing text") {
+              const perFile = m.progress || 0;
+              const base = (i / selectedImages.length) * 100;
+              const slice = (perFile * 100) / selectedImages.length;
+              setProgress(base + slice);
+            }
+          },
+        });
+
+        txtOutput.value +=
+          "----- " + file.name + " -----\n" + result.data.text + "\n\n";
+      }
+
+      setStatus("Done");
+      setProgress(100);
+    }
+
+    btnRun.addEventListener("click", () => {
+      runOcrSequence().catch((err) => {
+        console.error(err);
+        setStatus("Error (see console)");
+      });
+    });
+
+    btnClear.addEventListener("click", () => {
+      selectedImages = [];
+      refreshThumbs();
+      fileInput.value = "";
+      txtOutput.value = "";
+      setStatus("Idle");
+      setProgress(0);
+    });
+
+    btnCopy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(txtOutput.value || "");
+        setStatus("Copied");
+      } catch (err) {
+        console.error(err);
+        setStatus("Copy failed");
+      }
+    });
+
+    btnDownloadTxt.addEventListener("click", () => {
+      const blob = new Blob([txtOutput.value || ""], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "ocr_output.txt";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    btnExportCsv.addEventListener("click", () => {
+      const raw = txtOutput.value || "";
+      const rows = raw.split(/\r?\n/).map((line) => {
+        const safe = line.replace(/"/g, '""');
+        return `"${safe}"`;
+      });
+      const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "ocr_output.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>
