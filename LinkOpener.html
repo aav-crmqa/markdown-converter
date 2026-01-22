@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bulk URL Opener</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+    textarea { width: 100%; min-height: 220px; padding: 12px; font-size: 14px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+    button { padding: 10px 14px; font-size: 14px; cursor: pointer; }
+    label { display: inline-flex; gap: 8px; align-items: center; }
+    .small { color: #555; font-size: 13px; }
+    .status { margin-top: 12px; white-space: pre-wrap; background: #f6f6f6; padding: 10px; border-radius: 8px; }
+    input[type="number"] { width: 90px; padding: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Bulk URL Opener</h1>
+  <p class="small">Paste URLs below (one per line). Click “Open URLs”.</p>
+
+  <textarea id="urls" placeholder="https://example.com&#10;google.com&#10;https://openai.com"></textarea>
+
+  <div class="row">
+    <button id="openBtn">Open URLs</button>
+    <button id="clearBtn" type="button">Clear</button>
+
+    <label>
+      <input id="dedupe" type="checkbox" checked />
+      Dedupe
+    </label>
+
+    <label>
+      <input id="skipInvalid" type="checkbox" checked />
+      Skip invalid
+    </label>
+
+    <label title="Some browsers may block if you open too many at once">
+      Max to open:
+      <input id="maxOpen" type="number" min="1" value="25" />
+    </label>
+  </div>
+
+  <div id="status" class="status" aria-live="polite"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function normalizeUrl(raw) {
+      let s = raw.trim();
+      if (!s) return null;
+
+      // Allow people to paste with commas/spaces accidentally
+      s = s.replace(/^[, ]+|[, ]+$/g, "");
+
+      // If it already has a scheme, keep it; otherwise assume https
+      if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(s)) {
+        s = "https://" + s;
+      }
+
+      // Validate with URL constructor
+      const u = new URL(s);
+      // Optional: require http/https only
+      if (!/^https?:$/.test(u.protocol)) return null;
+
+      return u.toString();
+    }
+
+    function parseUrls(text, { dedupe = true, skipInvalid = true } = {}) {
+      const lines = text.split(/\r?\n/);
+      const out = [];
+      const seen = new Set();
+
+      for (const line of lines) {
+        const norm = normalizeUrl(line);
+        if (!norm) {
+          if (!skipInvalid && line.trim()) out.push({ ok: false, value: line.trim() });
+          continue;
+        }
+        if (dedupe) {
+          if (seen.has(norm)) continue;
+          seen.add(norm);
+        }
+        out.push({ ok: true, value: norm });
+      }
+      return out;
+    }
+
+    $("openBtn").addEventListener("click", () => {
+      const dedupe = $("dedupe").checked;
+      const skipInvalid = $("skipInvalid").checked;
+      const maxOpen = Math.max(1, Number($("maxOpen").value || 1));
+
+      const parsed = parseUrls($("urls").value, { dedupe, skipInvalid });
+
+      const good = parsed.filter(x => x.ok).map(x => x.value);
+      const bad = parsed.filter(x => !x.ok).map(x => x.value);
+
+      const toOpen = good.slice(0, maxOpen);
+
+      // Open each in a new tab (user-initiated click helps reduce popup blocking)
+      let opened = 0;
+      for (const url of toOpen) {
+        const w = window.open(url, "_blank", "noopener,noreferrer");
+        if (w) opened++;
+      }
+
+      const blocked = toOpen.length - opened;
+      const remaining = good.length - toOpen.length;
+
+      $("status").textContent =
+        `Found: ${good.length} valid URL(s)\n` +
+        (bad.length ? `Invalid (not opened): ${bad.length}\n` : "") +
+        `Attempted to open: ${toOpen.length}\n` +
+        `Opened: ${opened}\n` +
+        (blocked ? `Blocked by browser: ${blocked} (check pop-up settings)\n` : "") +
+        (remaining ? `Not opened due to Max to open: ${remaining}\n` : "");
+    });
+
+    $("clearBtn").addEventListener("click", () => {
+      $("urls").value = "";
+      $("status").textContent = "";
+      $("urls").focus();
+    });
+
+    // Nice: Ctrl/Cmd+Enter opens
+    $("urls").addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") $("openBtn").click();
+    });
+
+    $("status").textContent = "Ready.";
+  </script>
+</body>
+</html>
