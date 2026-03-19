@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ID URL Launcher</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      background-color: #f5f5f5;
+      color: #222;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 24px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 8px;
+    }
+
+    p {
+      margin-top: 0;
+      color: #555;
+    }
+
+    textarea {
+      width: 100%;
+      height: 180px;
+      margin: 12px 0 16px;
+      padding: 12px;
+      font-size: 14px;
+      line-height: 1.4;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-sizing: border-box;
+      resize: vertical;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 10px 16px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button:hover {
+      opacity: 0.92;
+    }
+
+    #generateBtn {
+      background: #111;
+      color: white;
+    }
+
+    #openAllBtn {
+      background: #0b5fff;
+      color: white;
+    }
+
+    .note {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 16px;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li {
+      background: #fafafa;
+      border: 1px solid #e7e7e7;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      word-break: break-all;
+    }
+
+    a {
+      color: #0b5fff;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ID URL Launcher</h1>
+    <p>Enter IDs separated by new lines, commas, or spaces.</p>
+
+    <textarea id="idInput" placeholder="12345&#10;67890&#10;24680"></textarea>
+
+    <div class="actions">
+      <button id="generateBtn" type="button" onclick="generateLinks()">Generate Links</button>
+      <button id="openAllBtn" type="button" onclick="openAll()">Open All</button>
+    </div>
+
+    <div class="note">
+      Note: some browsers may still block mass tab opening unless pop-ups are allowed for this page.
+    </div>
+
+    <ul id="linkList"></ul>
+  </div>
+
+  <script>
+    const baseUrl = "https://trading.hardrocksportsbook.com/bonuses/manager/";
+
+function getIds() {
+  const raw = document.getElementById("idInput").value || "";
+
+  // Match any standalone number with 6+ digits
+  const matches = raw.match(/\b\d{6,}\b/g);
+
+  return matches ? matches : [];
+}
+    function generateLinks() {
+      const ids = getIds();
+      const list = document.getElementById("linkList");
+      list.innerHTML = "";
+
+      if (ids.length === 0) {
+        const li = document.createElement("li");
+        li.textContent = "No IDs entered.";
+        list.appendChild(li);
+        return;
+      }
+
+      ids.forEach(function(id) {
+        const fullUrl = baseUrl + encodeURIComponent(id);
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+
+        a.href = fullUrl;
+        a.textContent = fullUrl;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+
+        li.appendChild(a);
+        list.appendChild(li);
+      });
+    }
+
+    function openAll() {
+      const ids = getIds();
+
+      if (ids.length === 0) {
+        alert("Please enter at least one ID.");
+        return;
+      }
+
+      ids.forEach(function(id, index) {
+        const fullUrl = baseUrl + encodeURIComponent(id);
+
+        setTimeout(function() {
+          const newWindow = window.open(fullUrl, "_blank");
+          if (newWindow) {
+            newWindow.opener = null;
+          }
+        }, index * 350);
+      });
+    }
+  </script>
+</body>
+</html>
